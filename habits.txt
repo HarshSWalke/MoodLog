@@ -1,1 +1,6 @@
-0	G	Reading
+1	G	Reading
+1	G	Dancing
+1	G	Cooking 
+1	B	doomscrolling
+0	B	Games
+0	G	swimming

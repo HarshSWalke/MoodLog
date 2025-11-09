@@ -10,6 +10,10 @@
 #include <map>
 #include <algorithm>
 #include <climits>
+#include "nlohmann/json.hpp"
+#include <cstdlib>
+using json = nlohmann::json;
+
 
 
 using namespace std;
@@ -43,6 +47,26 @@ private:
 
 public:
     HabitTree() : root(nullptr), currentDay(0) {}
+// in HabitTree (public)
+        json nodeToJson(HabitNode* node) const {
+            if (!node) return nullptr;
+            json j;
+            j["day"] = node->day;
+            j["success"] = node->success;
+            j["motivation"] = node->motivation;
+            if (node->left)  j["left"]  = nodeToJson(node->left);
+            else j["left"] = nullptr;
+            if (node->right) j["right"] = nodeToJson(node->right);
+            else j["right"] = nullptr;
+            return j;
+        }
+
+        // export whole tree to file (public)
+        void exportToJsonFile(const std::string& filename) const {
+            json out = nodeToJson(root);
+            std::ofstream fout(filename);
+            if (fout) fout << out.dump(4);
+        }
 
     void insert(bool success, int motivation) {
         ++currentDay;
@@ -115,6 +139,30 @@ public:
             w = max(-5, min(5, w)); // clamp weights between -5 and +5
         }
     }
+// public:
+        void exportToJsonFile(const std::string& filename) const {
+            json j;
+            j["edges"] = json::array();
+            j["nodes"] = json::array();
+
+            // nodes: collect unique nodes
+            for (const auto& kv : adj) {
+                j["nodes"].push_back(kv.first);
+            }
+            // edges
+            for (const auto& kv : adj) {
+                const string& src = kv.first;
+                for (const auto& p : kv.second) {
+                    j["edges"].push_back({
+                        {"source", src},
+                        {"target", p.first},
+                        {"weight", p.second}
+                    });
+                }
+            }
+            std::ofstream fout(filename);
+            if (fout) fout << j.dump(4);
+        }
 
     void showInfluences() const {
         cout << "\n--- Habit Influence Network ---\n";
@@ -182,6 +230,16 @@ public:
         progressTree.insert(true, motivation);
         cout << "✅ Great job! You completed: " << name << " (Streak: " << streak << ")\n";
     }
+    // in Habit public methods:
+        void exportProgressJson(const std::string& folder = ".") const {
+            // sanitize file name if you want; simple version:
+            std::string fname = folder + "/" + getName() + "_tree.json";
+            // replace spaces with underscores
+            std::replace(fname.begin(), fname.end(), ' ', '_');
+            // call HabitTree exporter — need a const-export method in HabitTree (we added it)
+            const_cast<HabitTree&>(progressTree).exportToJsonFile(fname); // const_cast because method not const? If method is const above, no need.
+        }
+
 
     void markMissed(int motivation) {
         if (completedToday) {
@@ -248,6 +306,7 @@ public:
         habits.emplace_back(name, 0);
         cout << "Habit added: " << name << '\n';
     }
+
 
     // Interactive add habit (uses getline)
    void addHabitInteractive() {
@@ -343,7 +402,15 @@ public:
         else h.markMissed(motivation);
 
         graph.updateInfluence(h.getName(), (status == 1), h.isGoodHabit(), motivation);
-        logActivity(username, h.getName());
+                logActivity(username, h.getName());
+                #ifdef _WIN32
+            std::system("if not exist dashboard_data mkdir dashboard_data");
+        #else
+            std::system("mkdir -p dashboard_data");
+        #endif
+
+         h.exportProgressJson("dashboard_data");
+         graph.exportToJsonFile("dashboard_data/habit_graph.json");
     }
 
 
